@@ -2,3 +2,4 @@
 .tmp-test/
 __pycache__/
 *.pyc
+.pf_manifest/

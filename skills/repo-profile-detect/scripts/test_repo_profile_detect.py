@@ -21,7 +21,7 @@ def test_requirements_project_uses_pip_and_pytest():
         assert profile.status == "supported"
         assert profile.install_cmds == ["python -m pip install -r requirements.txt"]
         assert profile.gates.test is not None
-        assert profile.gates.test.cmd == "pytest"
+        assert profile.gates.test.cmd == "pytest -q tests"
         assert profile.working_dir == "."
 
 
@@ -111,13 +111,26 @@ def test_ruff_dependency_without_config_enables_lint_gate():
 def test_no_tests_directory_disables_test_gate():
     with tempfile.TemporaryDirectory() as tmp:
         repo = Path(tmp)
-        _write(repo / "requirements.txt", "")
+        _write(repo / "requirements.txt", "pytest\n")
         request = RepoProfileRequest(repo_dir=str(repo))
         response = detect_repo_profile(request)
         profile = response.profile
 
         assert profile.gates.test is None
         assert profile.decisions.tests.source == "none"
+
+
+def test_pytest_config_enables_default_pytest():
+    with tempfile.TemporaryDirectory() as tmp:
+        repo = Path(tmp)
+        _write(repo / "requirements.txt", "pytest\n")
+        _write(repo / "pytest.ini", "[pytest]\n")
+        request = RepoProfileRequest(repo_dir=str(repo))
+        response = detect_repo_profile(request)
+        profile = response.profile
+
+        assert profile.gates.test is not None
+        assert profile.gates.test.cmd == "pytest -q"
 
 
 def test_suggested_profiles_include_tox_and_make():

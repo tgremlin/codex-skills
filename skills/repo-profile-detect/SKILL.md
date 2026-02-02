@@ -24,7 +24,7 @@ Detect a Python repo's install mechanism and gate commands, then write a stable 
   - Else if `pyproject.toml` or `setup.py` or `setup.cfg` exists -> use `pip -e .`.
   - Else -> status `unsupported` with reason.
 - **Gates:**
-  - **tests:** `pytest` if pytest dependency is detected or `tests/` exists.
+  - **tests:** `pytest -q tests` if `tests/` exists; `pytest -q` only if pytest config exists; otherwise no tests gate.
   - **lint:** `ruff check .` if ruff config exists or ruff dependency is detected.
   - **typecheck:** `mypy .` if mypy config exists or mypy dependency is detected.
 - **Python version:** best-effort from `explicit_python_version`, `.python-version`, `pyproject.toml`, `setup.cfg`, `setup.py`, or `tox.ini`.

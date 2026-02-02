@@ -116,6 +116,8 @@ class RepoProfile(BaseModel):
     status: str
     reason: Optional[str] = None
     missing: list[str]
+    project_root: str
+    tests_root: Optional[str] = None
     python_version_target: Optional[str] = None
     install_cmds: list[str]
     gates: GateProfile
@@ -565,6 +567,16 @@ def _detect_profile(request: RepoProfileRequest) -> RepoProfile:
     setup_cfg = _load_cfg(setup_cfg_path)
     setup_cfg_deps = _deps_from_setup_cfg(setup_cfg)
 
+    pytest_ini_path = repo_dir / "pytest.ini"
+    pytest_tool = (pyproject_data.get("tool") or {}).get("pytest") is not None
+    pytest_ini_options = (pyproject_data.get("tool") or {}).get("pytest.ini_options") is not None
+    pytest_config_present = (
+        pytest_ini_path.exists()
+        or setup_cfg.has_section("tool:pytest")
+        or pytest_tool
+        or pytest_ini_options
+    )
+
     setup_py_path = repo_dir / "setup.py"
     setup_py_text = _read_text(setup_py_path) if setup_py_path.exists() else None
 
@@ -585,21 +597,21 @@ def _detect_profile(request: RepoProfileRequest) -> RepoProfile:
         repo_dir, overrides, pyproject_exists
     )
 
-    dep_pytest = (
-        _dep_in_pyproject("pytest", pyproject_data)
-        or _requirements_have_dep(requirements_lines, "pytest")
-        or _requirements_have_dep(setup_cfg_deps, "pytest")
-    )
     tests_dir = repo_dir / "tests"
-    if dep_pytest:
-        test_detected = True
-        test_reason = "pytest dependency present"
-    elif tests_dir.exists():
+    tests_root = None
+    if tests_dir.exists():
         test_detected = True
         test_reason = "tests/ directory present"
+        tests_root = "tests"
+        test_default_cmd = "pytest -q tests"
+    elif pytest_config_present:
+        test_detected = True
+        test_reason = "pytest config present"
+        test_default_cmd = "pytest -q"
     else:
         test_detected = False
-        test_reason = "no pytest dependency or tests/ directory"
+        test_reason = "no tests/ directory or pytest config"
+        test_default_cmd = "pytest -q"
 
     ruff_config = any(
         [
@@ -652,7 +664,7 @@ def _detect_profile(request: RepoProfileRequest) -> RepoProfile:
         test_detected,
         test_reason,
         "pytest",
-        "pytest",
+        test_default_cmd,
     )
     lint_cmd, lint_decision = _detect_gate_cmd(
         "lint",
@@ -757,6 +769,8 @@ def _detect_profile(request: RepoProfileRequest) -> RepoProfile:
         status=status,
         reason=reason,
         missing=missing,
+        project_root=".",
+        tests_root=tests_root,
         python_version_target=python_version,
         install_cmds=install_cmds,
         gates=gates,
