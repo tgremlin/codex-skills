@@ -1,0 +1,4 @@
+.venv/
+.tmp-test/
+__pycache__/
+*.pyc
