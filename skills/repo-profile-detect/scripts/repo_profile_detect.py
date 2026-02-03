@@ -39,6 +39,13 @@ class Overrides(BaseModel):
     test_cmd: Optional[str] = None
     lint_cmd: Optional[str] = None
     type_cmd: Optional[str] = None
+    repo_setup_cmds: Optional[list[str]] = None
+    repo_setup_idempotency_check: Optional[str] = None
+    repo_setup_continue_on_failure: Optional[bool] = None
+    repo_setup_allow_unsafe: Optional[bool] = None
+    allow_editable_install: Optional[bool] = None
+    allow_unauthenticated_apt: Optional[bool] = None
+    policy_profile: Optional[str] = None
     env: Optional[dict[str, str]] = None
 
 
@@ -120,6 +127,13 @@ class RepoProfile(BaseModel):
     tests_root: Optional[str] = None
     python_version_target: Optional[str] = None
     install_cmds: list[str]
+    repo_setup_cmds: list[str]
+    repo_setup_idempotency_check: str
+    repo_setup_continue_on_failure: bool
+    repo_setup_allow_unsafe: bool
+    allow_editable_install: bool
+    allow_unauthenticated_apt: bool
+    policy_profile: Optional[str] = None
     gates: GateProfile
     decisions: RepoDecisions
     detected_tools: list[str]
@@ -687,6 +701,40 @@ def _detect_profile(request: RepoProfileRequest) -> RepoProfile:
     if overrides and overrides.env:
         env.update(overrides.env)
 
+    repo_setup_cmds: list[str] = []
+    if overrides and overrides.repo_setup_cmds is not None:
+        repo_setup_cmds = _normalize_cmd_list(overrides.repo_setup_cmds)
+
+    idempotency_check = "warn"
+    if overrides and overrides.repo_setup_idempotency_check:
+        idempotency_check = overrides.repo_setup_idempotency_check
+    if idempotency_check not in {"warn", "fail", "off"}:
+        raise ValueError("repo_setup_idempotency_check must be warn|fail|off")
+
+    continue_on_failure = False
+    if overrides and overrides.repo_setup_continue_on_failure is not None:
+        continue_on_failure = bool(overrides.repo_setup_continue_on_failure)
+
+    allow_unsafe = False
+    if overrides and overrides.repo_setup_allow_unsafe is not None:
+        allow_unsafe = bool(overrides.repo_setup_allow_unsafe)
+
+    policy_profile = overrides.policy_profile.strip() if overrides and overrides.policy_profile else None
+    if policy_profile not in {None, "strict", "pragmatic"}:
+        raise ValueError("policy_profile must be strict|pragmatic when provided")
+
+    allow_editable_install = False
+    if policy_profile == "pragmatic":
+        allow_editable_install = True
+    if overrides and overrides.allow_editable_install is not None:
+        allow_editable_install = bool(overrides.allow_editable_install)
+
+    allow_unauthenticated_apt = True
+    if policy_profile == "strict":
+        allow_unauthenticated_apt = False
+    if overrides and overrides.allow_unauthenticated_apt is not None:
+        allow_unauthenticated_apt = bool(overrides.allow_unauthenticated_apt)
+
     gates = GateProfile(
         test=Gate(cmd=test_cmd, timeout_sec=DEFAULT_TEST_TIMEOUT_SEC) if test_cmd else None,
         lint=Gate(cmd=lint_cmd, timeout_sec=DEFAULT_LINT_TIMEOUT_SEC) if lint_cmd else None,
@@ -773,6 +821,13 @@ def _detect_profile(request: RepoProfileRequest) -> RepoProfile:
         tests_root=tests_root,
         python_version_target=python_version,
         install_cmds=install_cmds,
+        repo_setup_cmds=repo_setup_cmds,
+        repo_setup_idempotency_check=idempotency_check,
+        repo_setup_continue_on_failure=continue_on_failure,
+        repo_setup_allow_unsafe=allow_unsafe,
+        allow_editable_install=allow_editable_install,
+        allow_unauthenticated_apt=allow_unauthenticated_apt,
+        policy_profile=policy_profile,
         gates=gates,
         decisions=decisions,
         detected_tools=detected_tools,

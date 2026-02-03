@@ -28,7 +28,10 @@ Detect a Python repo's install mechanism and gate commands, then write a stable 
   - **lint:** `ruff check .` if ruff config exists or ruff dependency is detected.
   - **typecheck:** `mypy .` if mypy config exists or mypy dependency is detected.
 - **Python version:** best-effort from `explicit_python_version`, `.python-version`, `pyproject.toml`, `setup.cfg`, `setup.py`, or `tox.ini`.
-- **Overrides:** if provided, override install/gate commands and env, without changing the detection order.
+- **Overrides:** if provided, override install/gate commands, `repo_setup_cmds`, and env, without changing the detection order.
+- **Repo setup policy:** optional overrides include `repo_setup_idempotency_check` (`warn|fail|off`), `repo_setup_continue_on_failure` (bool), `repo_setup_allow_unsafe` (bool), `allow_editable_install` (bool), `allow_unauthenticated_apt` (bool), and `policy_profile` (`strict|pragmatic`).
+  - `allow_editable_install=true` is interpreted by gates-run as a **test gate prelude** (editable install runs inside the gate container, not in repo_setup).
+  - `policy_profile=strict` sets `allow_editable_install=false` and `allow_unauthenticated_apt=false` unless explicitly overridden.
 - **Status:** `supported` when install is found; `partial` if install is found but a detected gate is missing; `unsupported` if no install is found. `missing` lists the missing pieces.
 - **Explainability:** `decisions` include `value`, `reason`, `source`, and `defaulted_cmd` for install/gate/python decisions.
 - **Detected tools:** `detected_tools` includes opt-in tools like `tox` and `make` (not auto-selected for gates).
@@ -45,6 +48,11 @@ python3 scripts/repo_profile_detect.py <<'JSON'
   "explicit_python_version": "3.11",
   "overrides": {
     "install_cmds": ["uv sync --all-extras --dev"],
+    "repo_setup_cmds": ["touch tests/__init__.py"],
+    "repo_setup_idempotency_check": "warn",
+    "repo_setup_continue_on_failure": false,
+    "repo_setup_allow_unsafe": false,
+    "allow_editable_install": false,
     "test_cmd": "pytest",
     "lint_cmd": "ruff check .",
     "type_cmd": "mypy .",

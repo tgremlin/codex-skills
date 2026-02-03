@@ -6,6 +6,7 @@ from container_image_build import (
     ImageBuildRequest,
     _docker_available,
     _profile_id,
+    _should_retry_with_builder,
     build_container_image,
 )
 
@@ -52,3 +53,11 @@ def test_build_image_for_tiny_repo():
 
         assert response.image_tag
         assert Path(response.build_log_path).exists()
+
+
+def test_builder_retry_detection():
+    log = (
+        "yarl/_quoting.c:196:12: fatal error: longintrepr.h: No such file or directory\n"
+        "error: command '/usr/bin/gcc' failed with exit code 1\n"
+    )
+    assert _should_retry_with_builder(log) is True

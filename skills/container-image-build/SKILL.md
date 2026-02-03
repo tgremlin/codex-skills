@@ -22,6 +22,10 @@ Generate a deterministic Dockerfile from a repo profile, build a Docker image ta
 - `install_cmds` are executed as `RUN` steps in order.
 - Environment variables are written in sorted key order for stability.
 - Dockerfile content is stable given the same profile.
+- Builder tier: if the build log matches missing-header signatures (e.g., `longintrepr.h`, `Python.h`), rebuild with a deterministic `Dockerfile.builder` that adds `python3-dev` and `libffi-dev`.
+- Archive fallback: if apt repositories are missing (e.g., buster 404/Release errors), rebuild with archive.debian.org sources (`Dockerfile.archive`).
+- Archive security mode is recorded in `.pf_manifest/image_build/manifest.json` as `apt_security_mode` (standard, archive, archive_unauthenticated).
+- `allow_unauthenticated_apt=false` in the profile prevents archive unauthenticated retries (strict mode).
 
 ## Caching Behavior
 
@@ -30,6 +34,8 @@ Generate a deterministic Dockerfile from a repo profile, build a Docker image ta
 - If `image_cache_dir` is provided, a cached tarball `{profile_id}.tar` is loaded/saved to improve reuse.
 - If `image_cache_dir` is omitted, the builder uses `{repo_dir}/.tmp-test/image-cache` by default (override with `PF_TMP_DIR`).
 - Docker layer cache is used by default via `cache_from`.
+- Build-stage unsupported registry: on build failures, updates `{repo_dir}/.pf_manifest/unsupported_registry.json` (or `{tmp_root}/bugsinpy/unsupported_registry.json` for BugsInPy) with `stage=image_build` and classification (e.g., invalid requirement, platform incompatibility, missing install mechanism).
+- Manifest provenance includes `base_image_tag`, `base_image_digest`, and `policy_profile` for traceability.
 
 ## CLI Example
 
