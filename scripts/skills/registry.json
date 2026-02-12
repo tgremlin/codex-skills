@@ -41,6 +41,22 @@
       "status": "implemented"
     },
     {
+      "cli": "python -m skills spec_wizard --repo <path> [--flow-next] [--run-contracts] [--run-pipeline]",
+      "id": "spec_wizard",
+      "produced_artifacts": [
+        "examples/specs/<app>_wizard.md",
+        "artifacts/spec_wizard/<timestamp>/repo_scan.json",
+        "artifacts/spec_wizard/<timestamp>/spec.json",
+        "artifacts/spec_wizard/<timestamp>/trace_map.json",
+        "artifacts/spec_wizard/<timestamp>/GateReport.md",
+        "artifacts/spec_wizard/<timestamp>/summary.json"
+      ],
+      "required_inputs": [
+        "repo"
+      ],
+      "status": "implemented"
+    },
+    {
       "cli": "python -m skills plan_to_contracts --spec SPEC.md",
       "id": "plan_to_contracts",
       "produced_artifacts": [

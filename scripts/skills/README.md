@@ -37,6 +37,7 @@ Command help includes registry-declared required flags and produced artifacts.
 ## Current Implemented Commands
 
 - `python3 -m skills doctor`
+- `python3 -m skills spec_wizard --repo /path/to/app [--flow-next] [--non-interactive --answers answers.json]`
 - `python3 -m skills template_select --spec examples/SPEC.todo.md`
 - `python3 -m skills scaffold_verify --template local-node-http-crud --port auto`
 - `python3 -m skills plan_to_contracts --spec examples/SPEC.todo.md`
@@ -50,9 +51,59 @@ Command help includes registry-declared required flags and produced artifacts.
 - `python3 -m skills matrix --spec-dir examples/specs [--templates all|id1,id2] [--strict] [--network] [--limit N]`
 - `python3 -m skills prune_artifacts [--keep-days 14] [--dry-run] [--skills pipeline,bench]`
 
+Spec bootstrap + execution chain:
+
+- Generate SPEC from repository evidence + wizard answers:
+  - `python3 -m skills spec_wizard --repo /path/to/app`
+- Non-interactive/orchestrator-safe run:
+  - `python3 -m skills spec_wizard --repo /path/to/app --non-interactive --answers answers.json --orchestrator`
+- Optional Flow-Next import:
+  - `python3 -m skills spec_wizard --repo /path/to/app --flow-next [--epic fn-<id>]`
+- Auto-run downstream contracts/pipeline:
+  - `python3 -m skills spec_wizard --repo /path/to/app --run-contracts --run-pipeline`
+
+`spec_wizard` artifacts:
+
+- `artifacts/spec_wizard/<timestamp>/repo_scan.json`
+- `artifacts/spec_wizard/<timestamp>/spec.json`
+- `artifacts/spec_wizard/<timestamp>/trace_map.json`
+- `artifacts/spec_wizard/<timestamp>/GateReport.md`
+- `artifacts/spec_wizard/<timestamp>/summary.json`
+- `artifacts/spec_wizard/latest/*` (copied latest run bundle)
+
 Optional local network mode:
 
 - `python3 -m skills fullstack_test_harness --template local-node-http-crud --network`
+
+## Spec Auto-Discovery
+
+Commands that consume a SPEC (for example `pipeline` and `plan_to_contracts`) can run
+without `--spec`. The CLI resolves the SPEC deterministically under the provided
+`--workspace-root`.
+
+Preferred explicit pointer (no directory auto-creation):
+
+1. `.swarm/spec_path.txt` containing one relative path, e.g.:
+   - `examples/specs/my_app_wizard.md`
+2. `.swarm/spec.json` containing:
+   - `{"spec_path":"examples/specs/my_app_wizard.md"}`
+
+If no pointer exists, discovery checks (in deterministic order):
+
+- `examples/specs/*_wizard.md`
+- `examples/specs/*_from_flow_next.md`
+- `examples/specs/*.md`
+- `SPEC.md`
+- `spec.md`
+
+Ambiguity is a hard fail (safety first). Fix by passing `--spec` explicitly or creating
+`.swarm/spec_path.txt`.
+
+Examples:
+
+- `swarm-skills pipeline --workspace-root /path/to/app --triage-on-fail --orchestrator`
+- `swarm-skills plan_to_contracts --workspace-root /path/to/app`
+- `python3 -m skills pipeline --workspace-root /path/to/app --spec examples/specs/explicit.md`
 
 Orchestrator mode (all commands):
 

@@ -2,6 +2,7 @@
 
 ## Mandatory Sequence
 
+0. `spec_wizard` (optional bootstrap when repository has no SPEC)
 1. S1 `template_select`
 2. S2 `scaffold_verify`
 3. S3 `plan_to_contracts`
@@ -61,6 +62,21 @@ Pipeline gate:
 - `pipeline --strict` propagates strict policy to S5 (`frontend_bind --strict`).
 - `pipeline --triage-on-fail` runs S7 automatically and records triage pointers in `pipeline_result.json`.
 
+Spec bootstrap gate:
+
+- `spec_wizard` creates a swarm-skills-compatible SPEC plus machine artifacts:
+  - `repo_scan.json`, `spec.json`, `trace_map.json`, `GateReport.md`, `summary.json`
+- Optional Flow-Next mode (`--flow-next`) validates `.flow`, imports selected epic tasks, and maps imported tasks to ACs in `trace_map.json`.
+- `--run-contracts` and `--run-pipeline` can chain directly after SPEC generation.
+- Use `--orchestrator` for single-object JSON stdout in automation.
+
+Spec auto-discovery:
+
+- For spec-consuming commands (including `plan_to_contracts` and `pipeline`), omit `--spec` to auto-discover under `--workspace-root`.
+- Preferred selector file: `.swarm/spec_path.txt` with one relative path.
+- Alternate selector: `.swarm/spec.json` with `{"spec_path":"relative/path.md"}`.
+- If multiple candidate specs are found, command fails intentionally with candidate list and guidance (pass `--spec` or set pointer file).
+
 Swarm handoff contract:
 
 - `skills/handoff_contract.json` defines machine-readable step order, dependencies, and strict-mode effects.
@@ -102,18 +118,22 @@ Preferred orchestrator input:
 Option A (simple gate):
 
 1. Build/update the app.
-2. Run:
-   - `python -m skills pipeline --spec <SPEC.md> --orchestrator`
-3. Ship only when `overall_status` is `pass`.
+2. Run bootstrap if no SPEC exists:
+   - `python -m skills spec_wizard --repo <target-repo>`
+3. Run:
+   - `swarm-skills pipeline --workspace-root <target-repo> --orchestrator`
+4. Ship only when `overall_status` is `pass`.
 
 Option B (recommended loop):
 
 1. Build/update the app.
-2. Run:
-   - `python -m skills pipeline --spec <SPEC.md> --triage-on-fail --orchestrator`
-3. If `overall_status` is `fail`, read triage pointers in `pipeline_result.json`.
-4. Dispatch targeted worker based on classification (`env/bootstrap`, `contract mismatch`, `backend runtime`, `frontend binding`, `db persistence`, `test flakiness`).
-5. Re-run pipeline until green.
+2. Run bootstrap if no SPEC exists:
+   - `python -m skills spec_wizard --repo <target-repo> --run-contracts`
+3. Run:
+   - `swarm-skills pipeline --workspace-root <target-repo> --triage-on-fail --orchestrator`
+4. If `overall_status` is `fail`, read triage pointers in `pipeline_result.json`.
+5. Dispatch targeted worker based on classification (`env/bootstrap`, `contract mismatch`, `backend runtime`, `frontend binding`, `db persistence`, `test flakiness`).
+6. Re-run pipeline until green.
 
 Machine recipe:
 

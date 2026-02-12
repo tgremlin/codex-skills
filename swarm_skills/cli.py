@@ -10,6 +10,7 @@ from pathlib import Path
 from swarm_skills.commands import doctor, scaffold_verify, template_select
 from swarm_skills.commands.stub import run_stub
 from swarm_skills.registry import RegistryData, RegistrySkill, load_registry, registry_as_json
+from swarm_skills.spec_discovery import SpecDiscoveryError, discover_spec
 
 try:
     from swarm_skills.commands import (
@@ -21,6 +22,7 @@ try:
         pipeline,
         plan_to_contracts,
         prune_artifacts,
+        spec_wizard,
         template_check,
         triage_and_patch,
     )
@@ -33,6 +35,7 @@ except ImportError:
     pipeline = None
     plan_to_contracts = None
     prune_artifacts = None
+    spec_wizard = None
     template_check = None
     triage_and_patch = None
 
@@ -43,6 +46,7 @@ INPUT_FLAG_MAP = {
     "contracts": "contracts",
     "gate_report": "gate_report",
     "logs": "logs",
+    "repo": "repo",
     "spec": "spec",
     "template": "template",
     "test_plan": "test_plan",
@@ -92,6 +96,15 @@ def _build_registry_help(skill: RegistrySkill) -> str:
     ]
     for artifact in skill.produced_artifacts:
         lines.append(f"- {artifact}")
+    if "spec" in skill.required_inputs:
+        lines.extend(
+            [
+                "",
+                "Spec auto-discovery:",
+                "- If --spec is omitted, CLI checks .swarm/spec_path.txt then .swarm/spec.json.",
+                "- If no pointer exists, CLI searches common locations under examples/specs/.",
+            ]
+        )
     return "\n".join(lines)
 
 
@@ -255,6 +268,44 @@ def _configure_parser_for_skill(parser: argparse.ArgumentParser, skill_id: str) 
             required=False,
             help="Comma-separated artifact skill directories to prune (default: all under artifacts/).",
         )
+    elif skill_id == "spec_wizard":
+        parser.add_argument("--repo", required=False, help="Target application repository path")
+        parser.add_argument(
+            "--out",
+            required=False,
+            help="Output SPEC markdown path (default: examples/specs/<app>_wizard.md)",
+        )
+        parser.add_argument("--app-name", required=False, help="Application name override")
+        parser.add_argument(
+            "--flow-next",
+            action="store_true",
+            help="If target repo has .flow state, import Flow-Next epics/tasks.",
+        )
+        parser.add_argument(
+            "--epic",
+            required=False,
+            help="Flow-Next epic id filter (comma-separated allowed).",
+        )
+        parser.add_argument(
+            "--run-contracts",
+            action="store_true",
+            help="Run plan_to_contracts after spec generation.",
+        )
+        parser.add_argument(
+            "--run-pipeline",
+            action="store_true",
+            help="Run pipeline --triage-on-fail after spec generation.",
+        )
+        parser.add_argument(
+            "--non-interactive",
+            action="store_true",
+            help="Disable prompts and load wizard answers from --answers JSON.",
+        )
+        parser.add_argument(
+            "--answers",
+            required=False,
+            help="Path to JSON answers file (required with --non-interactive).",
+        )
 
 
 def _build_handlers() -> dict[str, CommandHandler]:
@@ -303,6 +354,10 @@ def _build_handlers() -> dict[str, CommandHandler]:
         handlers["prune_artifacts"] = prune_artifacts.run
     else:
         handlers["prune_artifacts"] = lambda args: run_stub("prune_artifacts", args)
+    if spec_wizard is not None:
+        handlers["spec_wizard"] = spec_wizard.run
+    else:
+        handlers["spec_wizard"] = lambda args: run_stub("spec_wizard", args)
     return handlers
 
 
@@ -354,6 +409,7 @@ def _orchestrator_output_path(workspace_root: Path, command: str) -> Path:
         "plan_to_contracts": workspace_root / "artifacts" / "contracts" / "latest" / "summary.json",
         "prune_artifacts": workspace_root / "artifacts" / "prune" / "latest" / "summary.json",
         "scaffold_verify": workspace_root / "artifacts" / "scaffold_verify" / "latest" / "summary.json",
+        "spec_wizard": workspace_root / "artifacts" / "spec_wizard" / "latest" / "summary.json",
         "template_check": workspace_root / "artifacts" / "template_check" / "latest" / "summary.json",
         "template_select": workspace_root / "artifacts" / "template_select" / "latest" / "summary.json",
         "triage_and_patch": workspace_root / "artifacts" / "triage" / "latest" / "summary.json",
@@ -385,6 +441,50 @@ def _emit_orchestrator_json(workspace_root: Path, command: str, exit_code: int) 
     return exit_code
 
 
+def _spec_discovery_payload(
+    *,
+    command: str,
+    workspace_root: Path,
+    error: SpecDiscoveryError,
+) -> dict[str, object]:
+    candidates: list[str] = []
+    for candidate in sorted(error.candidates, key=lambda item: item.resolve().as_posix()):
+        resolved = candidate.resolve()
+        if resolved.is_relative_to(workspace_root):
+            candidates.append(str(resolved.relative_to(workspace_root)).replace("\\", "/"))
+        else:
+            candidates.append(str(resolved).replace("\\", "/"))
+    return {
+        "schema_version": "1.0",
+        "status": "fail",
+        "command": command,
+        "error_type": "spec_discovery_error",
+        "reason": error.reason,
+        "detail": error.detail,
+        "candidates": candidates,
+        "guidance": error.guidance,
+    }
+
+
+def _maybe_discover_spec(
+    *,
+    args: argparse.Namespace,
+    registry_skill: RegistrySkill,
+    workspace_root: Path,
+) -> SpecDiscoveryError | None:
+    requires_spec = "spec" in registry_skill.required_inputs and hasattr(args, "spec")
+    if not requires_spec:
+        return None
+    if getattr(args, "spec", None):
+        return None
+    try:
+        discovered = discover_spec(workspace_root)
+    except SpecDiscoveryError as exc:
+        return exc
+    args.spec = str(discovered.resolve())
+    return None
+
+
 def main(argv: list[str] | None = None) -> int:
     registry = load_registry()
     parser = _build_parser(registry)
@@ -402,6 +502,27 @@ def main(argv: list[str] | None = None) -> int:
     if registry_skill is None:
         parser.error(f"Command '{args.command}' is not declared in registry.json")
 
+    workspace_root = Path(getattr(args, "workspace_root", ".")).resolve()
+    discovery_error = _maybe_discover_spec(args=args, registry_skill=registry_skill, workspace_root=workspace_root)
+    if discovery_error is not None:
+        payload = _spec_discovery_payload(
+            command=args.command,
+            workspace_root=workspace_root,
+            error=discovery_error,
+        )
+        if getattr(args, "orchestrator", False) or getattr(args, "json", False):
+            print(json.dumps(payload, indent=2, sort_keys=True))
+        else:
+            print(f"[skills] spec discovery failed for `{args.command}`", file=sys.stderr)
+            print(f"reason: {payload['reason']}", file=sys.stderr)
+            print(f"detail: {payload['detail']}", file=sys.stderr)
+            if payload["candidates"]:
+                print("candidates:", file=sys.stderr)
+                for candidate in payload["candidates"]:
+                    print(f"- {candidate}", file=sys.stderr)
+            print(f"guidance: {payload['guidance']}", file=sys.stderr)
+        return 1
+
     ok, missing_flags = _validate_required_inputs(args, registry_skill)
     if not ok:
         parser.error(
@@ -417,7 +538,6 @@ def main(argv: list[str] | None = None) -> int:
         return handler(args)
 
     if args.orchestrator:
-        workspace_root = Path(getattr(args, "workspace_root", ".")).resolve()
         if hasattr(args, "json"):
             args.json = False
         print(f"[skills] orchestrator mode running `{args.command}`", file=sys.stderr)
