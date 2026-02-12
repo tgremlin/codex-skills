@@ -191,6 +191,21 @@ python3 -m skills bench --spec-dir examples/specs --append-history
 
 History entries are appended to `artifacts/bench/history.jsonl`.
 
+## Baseline Run
+
+Capture a known-good benchmark baseline:
+
+```bash
+./scripts/baseline/run_baseline.sh
+```
+
+Review:
+
+- `artifacts/baseline/latest/baseline_summary.json`
+- `artifacts/template_check/latest/report.json`
+- `artifacts/bench/latest/bench_results.json`
+- `artifacts/matrix/latest/matrix.json`
+
 ## Pushing to GitHub
 
 From a networked shell:
@@ -213,6 +228,7 @@ Verify CI:
 - Open the pushed commit or PR on GitHub.
 - Confirm `.github/workflows/merge-gate.yml` completed successfully.
 - If failed, download the uploaded `artifacts/**/latest/**` bundle and inspect `artifacts/pipeline/latest/GateReport.md`.
+- Detailed networked-shell push/verification checklist: `docs/push_and_ci_checklist.md`.
 
 ## Any-Folder Use
 
@@ -232,6 +248,7 @@ swarm-skills template_select --spec examples/SPEC.todo.md
 ```
 
 Repository helper scripts live under `scripts/git/`.
+Baseline and stress scripts live under `scripts/baseline/`.
 
 ## New Active Template
 

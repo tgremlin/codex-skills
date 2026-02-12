@@ -118,3 +118,23 @@ Option B (recommended loop):
 Machine recipe:
 
 - `skills/swarm_integration_recipe.json` encodes preferred flow commands and next-file pointers.
+
+## Stress Test Spec Run
+
+Run the multi-faceted stress spec with auto-triage:
+
+```bash
+./scripts/baseline/run_stress_test.sh
+```
+
+Equivalent direct command:
+
+```bash
+python -m skills pipeline --spec examples/specs/crud_rbac_audit_job.md --triage-on-fail --orchestrator
+```
+
+Inspect:
+
+- `artifacts/pipeline/latest/pipeline_result.json` for step-level status and warnings.
+- `artifacts/triage/latest/root_cause.md` and `artifacts/triage/latest/patch_plan.md` when failures occur.
+- `artifacts/baseline/latest/stress_test_summary.json` for the run pointer bundle.
