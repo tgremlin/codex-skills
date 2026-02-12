@@ -10,8 +10,6 @@ const BASE_URL = process.env.BASE_URL || 'http://localhost:3000'
 const TARGET_PATH = process.env.UI_SNAPSHOT_PATH || '/routes'
 const UPDATE_BASELINE = process.env.UI_SNAPSHOT_UPDATE === '1'
 const DIFF_THRESHOLD = Number(process.env.UI_SNAPSHOT_THRESHOLD || 0.1)
-const MAX_DIFF_PIXELS = Number(process.env.UI_SNAPSHOT_MAX_DIFF_PIXELS || 25)
-const SAVE_ACTUAL = process.env.UI_SNAPSHOT_SAVE_ACTUAL === '1'
 const DISABLE_SERVICE_WORKERS =
   process.env.UI_DISABLE_SW === '1' || process.env.UI_SMOKE_DISABLE_SW === '1'
 
@@ -128,11 +126,6 @@ async function runViewport(viewport) {
 
     const actualBuffer = await captureStateScreenshot(page, state)
 
-    if (SAVE_ACTUAL) {
-      const actualPath = path.join(diffDir, `${state}-actual.png`)
-      fs.writeFileSync(actualPath, actualBuffer)
-    }
-
     if (UPDATE_BASELINE) {
       fs.writeFileSync(baselinePath, actualBuffer)
       removeIfExists(diffPath)
@@ -163,11 +156,6 @@ async function runViewport(viewport) {
     }
 
     if (comparison.diffPixels > 0) {
-      if (MAX_DIFF_PIXELS > 0 && comparison.diffPixels <= MAX_DIFF_PIXELS) {
-        removeIfExists(diffPath)
-        results.push({ state, status: 'tolerated', diffPixels: comparison.diffPixels })
-        continue
-      }
       fs.writeFileSync(diffPath, PNG.sync.write(comparison.diffImage))
       results.push({
         state,
@@ -198,11 +186,7 @@ async function main() {
     summaries.push({ viewport: name, results })
 
     results.forEach((result) => {
-      if (
-        result.status !== 'match' &&
-        result.status !== 'baseline-updated' &&
-        result.status !== 'tolerated'
-      ) {
+      if (result.status !== 'match' && result.status !== 'baseline-updated') {
         failures.push({ viewport: name, ...result })
       }
     })
@@ -212,11 +196,7 @@ async function main() {
     console.log(`Viewport: ${summary.viewport}`)
     summary.results.forEach((result) => {
       const suffix = result.message ? ` (${result.message})` : ''
-      const diffNote =
-        result.status === 'tolerated'
-          ? ` (diffPixels=${result.diffPixels}, max=${MAX_DIFF_PIXELS})`
-          : ''
-      console.log(`- ${result.state}: ${result.status}${suffix}${diffNote}`)
+      console.log(`- ${result.state}: ${result.status}${suffix}`)
     })
   })
 

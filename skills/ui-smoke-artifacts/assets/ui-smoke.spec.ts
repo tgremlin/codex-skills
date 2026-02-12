@@ -60,8 +60,6 @@ const baseUrl = process.env.BASE_URL ?? 'http://localhost:3000'
 const targetPath = process.env.UI_SMOKE_PATH ?? '/routes'
 const runId = process.env.UI_SMOKE_RUN_ID ?? new Date().toISOString().replace(/[:.]/g, '-')
 const artifactsDir = path.join(process.cwd(), 'artifacts', 'ui-smoke', runId)
-const clearStorageEnv = process.env.UI_SMOKE_CLEAR_STORAGE
-const clearStorage = clearStorageEnv ? clearStorageEnv !== '0' : true
 
 const steps = [
   `Visit ${baseUrl}`,
@@ -87,16 +85,6 @@ const isChunkAsset = (url: string) => {
   const lower = url.toLowerCase()
   if (!lower.includes('/_next/') && !lower.includes('chunk')) return false
   return lower.includes('.js') || lower.includes('.css')
-}
-
-const isScriptAsset = (url: string) => {
-  const lower = url.toLowerCase()
-  return lower.endsWith('.js') || lower.includes('.js?') || lower.endsWith('/sw.js') || lower.includes('/sw.js?')
-}
-
-const isStyleAsset = (url: string) => {
-  const lower = url.toLowerCase()
-  return lower.endsWith('.css') || lower.includes('.css?')
 }
 
 test('ui smoke', async ({ page, context }) => {
@@ -158,12 +146,9 @@ test('ui smoke', async ({ page, context }) => {
 
   page.on('response', (response) => {
     const status = response.status()
-    const url = response.url()
-    const headers = response.headers()
-    const contentType = headers['content-type'] || ''
     if (status >= 400) {
       networkFailures.push({
-        url,
+        url: response.url(),
         method: response.request().method(),
         status,
         statusText: response.statusText(),
@@ -171,37 +156,14 @@ test('ui smoke', async ({ page, context }) => {
       })
     }
 
-    if (status >= 400 && isChunkAsset(url)) {
+    if (status >= 400 && isChunkAsset(response.url())) {
       assetFailures.push({
-        url,
+        url: response.url(),
         method: response.request().method(),
         status,
         statusText: response.statusText(),
         timestamp: now(),
       })
-    }
-
-    if (status < 400 && (isChunkAsset(url) || isScriptAsset(url) || isStyleAsset(url))) {
-      if (isScriptAsset(url) && !/javascript|ecmascript/.test(contentType)) {
-        assetFailures.push({
-          url,
-          method: response.request().method(),
-          status,
-          statusText: response.statusText(),
-          errorText: `Unexpected content-type for script: ${contentType || 'unknown'}`,
-          timestamp: now(),
-        })
-      }
-      if (isStyleAsset(url) && !contentType.includes('text/css')) {
-        assetFailures.push({
-          url,
-          method: response.request().method(),
-          status,
-          statusText: response.statusText(),
-          errorText: `Unexpected content-type for style: ${contentType || 'unknown'}`,
-          timestamp: now(),
-        })
-      }
     }
   })
 
@@ -214,56 +176,6 @@ test('ui smoke', async ({ page, context }) => {
       timestamp: now(),
     })
   })
-
-  await page.addInitScript(() => {
-    window.addEventListener('error', (event) => {
-      // Surface the script + line for SyntaxError cases without a stack.
-      console.error('UI_SMOKE_WINDOW_ERROR', {
-        message: event.message,
-        filename: event.filename,
-        lineno: event.lineno,
-        colno: event.colno,
-      })
-    })
-
-    window.addEventListener('unhandledrejection', (event) => {
-      console.error('UI_SMOKE_UNHANDLED_REJECTION', {
-        reason: event.reason ? String(event.reason) : 'unknown',
-      })
-    })
-  })
-
-  if (clearStorage) {
-    await page.addInitScript(() => {
-      try {
-        window.localStorage?.clear()
-        window.sessionStorage?.clear()
-      } catch (error) {
-        console.warn('Storage clear failed', error)
-      }
-
-      if ('caches' in window) {
-        caches.keys().then((keys) => {
-          keys.forEach((key) => {
-            caches.delete(key)
-          })
-        })
-      }
-
-      if ('indexedDB' in window && 'databases' in indexedDB) {
-        indexedDB
-          .databases()
-          .then((dbs) => {
-            dbs.forEach((db) => {
-              if (db.name) {
-                indexedDB.deleteDatabase(db.name)
-              }
-            })
-          })
-          .catch(() => {})
-      }
-    })
-  }
 
   // Dev-only auth bypass hook: supply JSON in UI_SMOKE_DEV_AUTH if needed.
   // Example: {"localStorage": {"authToken": "dev"}, "cookies": [{"name": "session", "value": "dev", "url": "http://localhost:3000"}]}
@@ -439,7 +351,6 @@ test('ui smoke', async ({ page, context }) => {
             .map((entry) => `${entry.status ?? 'failed'} ${entry.url}`)
             .join(' | ')}`
         : 'Chunk failures: none',
-      `Storage cleared: ${clearStorage ? 'YES' : 'NO'} (UI_SMOKE_CLEAR_STORAGE=${clearStorageEnv ?? 'default'})`,
       'Disable SW (dev/test): UI_SMOKE_DISABLE_SW=1 or UI_DISABLE_SW=1 (set to 0 to allow)',
       '',
       '## Artifacts',

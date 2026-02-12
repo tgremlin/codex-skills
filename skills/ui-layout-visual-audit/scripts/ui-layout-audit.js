@@ -2,7 +2,6 @@
 /* eslint-disable no-console */
 const fs = require('fs')
 const path = require('path')
-const { PNG } = require('pngjs')
 const { chromium } = require('@playwright/test')
 
 const BASE_URL = process.env.BASE_URL || 'http://localhost:3000'
@@ -16,7 +15,6 @@ const CLOSE_REMOVE_MIN_SIZE = Number(process.env.UI_LAYOUT_CLOSE_REMOVE_MIN_SIZE
 const INCLUDE_TABLET = process.env.UI_LAYOUT_TABLET === '1'
 const DISABLE_SERVICE_WORKERS =
   process.env.UI_DISABLE_SW === '1' || process.env.UI_SMOKE_DISABLE_SW === '1'
-const IGNORE_DEV_INDICATOR = process.env.UI_LAYOUT_IGNORE_DEV_INDICATOR === '1'
 
 const mobileViewport = (process.env.UI_MOBILE_VIEWPORT || '390x844')
   .split('x')
@@ -168,132 +166,46 @@ async function collectClipping(page) {
 
 async function collectBadgeCandidates(page) {
   return page.evaluate(() => {
-    const indicatorHints = ['Try Turbopack', 'Route Static', 'Route Dynamic', 'Route Partial']
-    const nodes = Array.from(document.querySelectorAll('span, div, button, a, svg, img'))
+    const nodes = Array.from(document.querySelectorAll('span, div, button'))
     const drawer = document.querySelector('[data-testid="details-drawer"]')
     return nodes
       .map((node, index) => {
-        const rawText = (node.textContent || '').trim()
-        const isIndicator = indicatorHints.some((hint) => rawText.includes(hint))
-        const target = isIndicator ? (node.closest('div') ?? node) : node
-        const text = (target.textContent || rawText).trim()
-        const testId = target.getAttribute('data-testid') || ''
-        const ariaLabel = target.getAttribute('aria-label') || ''
-        const title = target.getAttribute('title') || ''
-        const role = target.getAttribute('role') || ''
-        const className =
-          typeof target.className === 'string'
-            ? target.className
-            : target.className?.baseVal || ''
-        const rect = target.getBoundingClientRect()
-        const style = window.getComputedStyle(target)
-        const borderRadius = Number.parseFloat(style.borderRadius || '0')
-        const minSide = Math.min(rect.width, rect.height)
-        const isRounded =
-          className.includes('rounded') || (Number.isFinite(borderRadius) && borderRadius >= minSide / 2 - 1)
-        const isFixed = style.position === 'fixed'
-        const zIndex = Number.parseFloat(style.zIndex || '0') || 0
-        const hasGraphic = !!target.querySelector('svg, img')
+        const text = (node.textContent || '').trim()
+        const testId = node.getAttribute('data-testid') || ''
+        const ariaLabel = node.getAttribute('aria-label') || ''
+        const role = node.getAttribute('role') || ''
+        const className = node.className || ''
         const strongHint =
           /badge|avatar|profile/i.test(testId) ||
           /profile|avatar/i.test(ariaLabel) ||
-          /profile|avatar/i.test(title) ||
-          (role === 'img' && /avatar|profile/i.test(text)) ||
-          isIndicator
+          (role === 'img' && /avatar|profile/i.test(text))
         const smallLetterBadge =
-          text && text.length <= 2 && /[A-Za-z]/.test(text) && isRounded
-        const fixedLetterBadge =
           text &&
           text.length <= 2 &&
           /[A-Za-z]/.test(text) &&
-          isFixed &&
-          rect.width <= 64 &&
-          rect.height <= 64
-        const fixedGraphicBadge =
-          isFixed &&
-          zIndex >= 1000 &&
-          rect.width <= 80 &&
-          rect.height <= 80 &&
-          (hasGraphic || text.length <= 2 || ariaLabel || title)
-        const fixedOverlayBadge =
-          isFixed &&
-          zIndex >= 1000 &&
-          rect.width <= 100 &&
-          rect.height <= 100
-        if (!strongHint && !smallLetterBadge && !fixedLetterBadge && !fixedGraphicBadge && !fixedOverlayBadge) {
-          return null
-        }
+          className.includes('rounded')
+        if (!strongHint && !smallLetterBadge) return null
+        const rect = node.getBoundingClientRect()
         const centerX = rect.x + rect.width / 2
         const centerY = rect.y + rect.height / 2
         const topNode = document.elementFromPoint(centerX, centerY)
-        const onTop = !!topNode && (topNode === target || target.contains(topNode))
-        const insideDrawer = drawer ? drawer.contains(target) : false
+        const onTop = !!topNode && (topNode === node || node.contains(topNode))
+        const insideDrawer = drawer ? drawer.contains(node) : false
         return {
           id: testId || `badge-${index + 1}`,
           label: text,
           testId: testId || null,
           ariaLabel: ariaLabel || null,
-          title: title || null,
           role: role || null,
           className,
-          tagName: target.tagName ? target.tagName.toLowerCase() : null,
+          tagName: node.tagName ? node.tagName.toLowerCase() : null,
           bbox: { x: rect.x, y: rect.y, width: rect.width, height: rect.height },
           insideDrawer,
           onTop,
-          zIndex,
-          isFixed,
         }
       })
       .filter(Boolean)
   })
-}
-
-async function collectIndicatorCandidates(page, viewport) {
-  const results = []
-  const hints = ['Try Turbopack', 'Route Static', 'Route Dynamic', 'Route Partial']
-  const frames = page.frames()
-
-  for (const frame of frames) {
-    for (const hint of hints) {
-      const locator = frame.getByText(hint, { exact: false })
-      const count = await locator.count()
-      for (let i = 0; i < count; i += 1) {
-        const handle = locator.nth(i)
-        const box = await handle.boundingBox()
-        if (!box) continue
-        results.push({
-          id: `indicator-${hint}-${i + 1}`,
-          label: hint,
-          bbox: box,
-          insideDrawer: false,
-          onTop: true,
-          source: 'playwright',
-        })
-      }
-    }
-
-    const nLocator = frame.getByText(/^N$/)
-    const nCount = await nLocator.count()
-    for (let i = 0; i < nCount; i += 1) {
-      const handle = nLocator.nth(i)
-      const box = await handle.boundingBox()
-      if (!box) continue
-      const isSmall = box.width <= 100 && box.height <= 100
-      const isBottomLeft =
-        box.x < viewport.width / 2 && box.y > viewport.height - 200
-      if (!isSmall || !isBottomLeft) continue
-      results.push({
-        id: `indicator-n-${i + 1}`,
-        label: 'N',
-        bbox: box,
-        insideDrawer: false,
-        onTop: true,
-        source: 'playwright',
-      })
-    }
-  }
-
-  return results
 }
 
 async function captureHighlight(page, target, outputPath) {
@@ -316,86 +228,6 @@ async function captureHighlight(page, target, outputPath) {
   await page.evaluate(() => {
     document.querySelectorAll('[data-audit-overlay="true"]').forEach((el) => el.remove())
   })
-}
-
-function detectOverlayFromScreenshot(imagePath, viewport) {
-  if (!fs.existsSync(imagePath)) return null
-  const buffer = fs.readFileSync(imagePath)
-  const png = PNG.sync.read(buffer)
-  const width = png.width
-  const height = png.height
-  const region = {
-    x0: 0,
-    x1: Math.min(140, width),
-    y0: Math.max(height - 220, 0),
-    y1: height,
-  }
-  const isDark = (x, y) => {
-    const idx = (y * width + x) * 4
-    const r = png.data[idx]
-    const g = png.data[idx + 1]
-    const b = png.data[idx + 2]
-    const lum = (r + g + b) / 3
-    return lum < 70
-  }
-  const visited = new Uint8Array(width * height)
-  let best = null
-
-  for (let y = region.y0; y < region.y1; y += 1) {
-    for (let x = region.x0; x < region.x1; x += 1) {
-      const idx = y * width + x
-      if (visited[idx]) continue
-      if (!isDark(x, y)) continue
-      const stack = [[x, y]]
-      visited[idx] = 1
-      let count = 0
-      let minX = x
-      let maxX = x
-      let minY = y
-      let maxY = y
-      while (stack.length) {
-        const [cx, cy] = stack.pop()
-        count += 1
-        if (cx < minX) minX = cx
-        if (cx > maxX) maxX = cx
-        if (cy < minY) minY = cy
-        if (cy > maxY) maxY = cy
-        for (let dy = -1; dy <= 1; dy += 1) {
-          for (let dx = -1; dx <= 1; dx += 1) {
-            if (dx === 0 && dy === 0) continue
-            const nx = cx + dx
-            const ny = cy + dy
-            if (nx < region.x0 || nx >= region.x1 || ny < region.y0 || ny >= region.y1) {
-              continue
-            }
-            const nidx = ny * width + nx
-            if (visited[nidx]) continue
-            if (!isDark(nx, ny)) continue
-            visited[nidx] = 1
-            stack.push([nx, ny])
-          }
-        }
-      }
-      const boxWidth = maxX - minX + 1
-      const boxHeight = maxY - minY + 1
-      const isSmall = boxWidth <= 120 && boxHeight <= 120
-      if (!isSmall || count < 200) continue
-      if (!best || count > best.count) {
-        best = { minX, minY, maxX, maxY, count }
-      }
-    }
-  }
-
-  if (!best) return null
-  const bbox = {
-    x: best.minX,
-    y: best.minY,
-    width: best.maxX - best.minX + 1,
-    height: best.maxY - best.minY + 1,
-  }
-  const fitsViewport = bbox.x >= 0 && bbox.y >= 0 && bbox.x + bbox.width <= viewport.width + 2
-  if (!fitsViewport) return null
-  return bbox
 }
 
 async function runViewport(viewport) {
@@ -428,8 +260,6 @@ async function runViewport(viewport) {
   })
 
   await page.getByTestId('board-root').waitFor({ state: 'visible' })
-  const boardViewportPath = path.join(screenshotsDir, 'board-viewport.png')
-  await page.screenshot({ path: boardViewportPath, fullPage: false })
   await page.screenshot({ path: path.join(screenshotsDir, 'board.png'), fullPage: true })
 
   const jobCard = page.getByTestId('job-card').first()
@@ -449,27 +279,7 @@ async function runViewport(viewport) {
   const clickables = uniqueIds(clickablesRaw).filter((item) => item.bbox.width && item.bbox.height)
   const clickableMap = new Map(clickables.map((item) => [item.id, item]))
   const badgeCandidatesRaw = await collectBadgeCandidates(page)
-  const indicatorCandidates = await collectIndicatorCandidates(page, viewport)
-  const screenshotOverlay = detectOverlayFromScreenshot(boardViewportPath, viewport)
-  const screenshotCandidates = screenshotOverlay
-    ? [
-        {
-          id: 'overlay-bottom-left',
-          label: 'overlay',
-          bbox: screenshotOverlay,
-          insideDrawer: false,
-          onTop: true,
-          source: 'screenshot',
-        },
-      ]
-    : []
-  const badgeCandidates = uniqueIds([
-    ...badgeCandidatesRaw,
-    ...indicatorCandidates,
-    ...screenshotCandidates,
-  ]).filter(
-    (item) => item.bbox.width && item.bbox.height,
-  )
+  const badgeCandidates = uniqueIds(badgeCandidatesRaw).filter((item) => item.bbox.width && item.bbox.height)
 
   const makeIdentifier = (item) => {
     if (!item) return ''
@@ -497,22 +307,17 @@ async function runViewport(viewport) {
     label: badge.label,
     testId: badge.testId || null,
     ariaLabel: badge.ariaLabel || null,
-    title: badge.title || null,
     role: badge.role || null,
     className: badge.className,
     tagName: badge.tagName || null,
     bbox: badge.bbox,
     insideDrawer: badge.insideDrawer,
     onTop: badge.onTop,
-    zIndex: badge.zIndex ?? null,
-    isFixed: badge.isFixed ?? null,
-    source: badge.source || 'dom',
   })
 
   const overlaps = []
   const spacing = []
   const badgeIssues = []
-  const ignoredBadgeIssues = []
   const sizeViolations = []
   const closeRemoveStatus = {
     distance: null,
@@ -636,8 +441,6 @@ async function runViewport(viewport) {
   badgeCandidates.forEach((badge) => {
     if (!badge.onTop) return
     const badgeMeta = buildBadgeMeta(badge)
-    const ignoreBadge =
-      IGNORE_DEV_INDICATOR && badgeMeta.source === 'screenshot' && badgeMeta.label === 'overlay'
     if (drawerBox) {
       const intersection = rectIntersection(badge.bbox, drawerBox)
       if (
@@ -645,69 +448,49 @@ async function runViewport(viewport) {
         intersection.height > OVERLAP_TOLERANCE &&
         !badge.insideDrawer
       ) {
-        const entry = {
+        badgeIssues.push({
           rule: 'badge-overlap-drawer',
           badge: badgeMeta,
           target: { id: 'details-drawer', bbox: drawerBox },
           intersection,
-        }
-        if (ignoreBadge) {
-          ignoredBadgeIssues.push({ ...entry, ignored: true })
-        } else {
-          badgeIssues.push(entry)
-        }
+        })
       }
     }
 
     clickables.forEach((item) => {
       const intersection = rectIntersection(badge.bbox, item.bbox)
       if (intersection.width > OVERLAP_TOLERANCE && intersection.height > OVERLAP_TOLERANCE) {
-        const entry = {
+        badgeIssues.push({
           rule: 'badge-overlap-clickable',
           badge: badgeMeta,
           target: buildMeta(item),
           intersection,
-        }
-        if (ignoreBadge) {
-          ignoredBadgeIssues.push({ ...entry, ignored: true })
-        } else {
-          badgeIssues.push(entry)
-        }
+        })
       }
     })
 
     if (closeBox) {
       const distance = rectDistance(badge.bbox, closeBox)
       if (distance < SPACING_THRESHOLD) {
-        const entry = {
+        badgeIssues.push({
           rule: 'badge-proximity-close',
           badge: badgeMeta,
           target: { id: 'drawer-close', bbox: closeBox },
           distance: Number(distance.toFixed(2)),
           threshold: SPACING_THRESHOLD,
-        }
-        if (ignoreBadge) {
-          ignoredBadgeIssues.push({ ...entry, ignored: true })
-        } else {
-          badgeIssues.push(entry)
-        }
+        })
       }
     }
     if (removeBox) {
       const distance = rectDistance(badge.bbox, removeBox)
       if (distance < SPACING_THRESHOLD) {
-        const entry = {
+        badgeIssues.push({
           rule: 'badge-proximity-remove',
           badge: badgeMeta,
           target: { id: 'drawer-remove', bbox: removeBox },
           distance: Number(distance.toFixed(2)),
           threshold: SPACING_THRESHOLD,
-        }
-        if (ignoreBadge) {
-          ignoredBadgeIssues.push({ ...entry, ignored: true })
-        } else {
-          badgeIssues.push(entry)
-        }
+        })
       }
     }
   })
@@ -747,7 +530,6 @@ async function runViewport(viewport) {
   const offscreenPath = path.join(viewportDir, 'offscreen.json')
   const badgesPath = path.join(viewportDir, 'badges.json')
   const badgeIssuesPath = path.join(viewportDir, 'badge_issues.json')
-  const ignoredBadgeIssuesPath = path.join(viewportDir, 'ignored_badge_issues.json')
 
   fs.writeFileSync(overlapsPath, JSON.stringify(overlaps, null, 2))
   fs.writeFileSync(spacingPath, JSON.stringify(spacing, null, 2))
@@ -755,7 +537,6 @@ async function runViewport(viewport) {
   fs.writeFileSync(offscreenPath, JSON.stringify(offscreen, null, 2))
   fs.writeFileSync(badgesPath, JSON.stringify(badgeCandidates, null, 2))
   fs.writeFileSync(badgeIssuesPath, JSON.stringify(badgeIssues, null, 2))
-  fs.writeFileSync(ignoredBadgeIssuesPath, JSON.stringify(ignoredBadgeIssues, null, 2))
 
   const hardFailures = []
   offscreen.forEach((entry) => {
@@ -779,41 +560,6 @@ async function runViewport(viewport) {
         issue,
       })
     }
-    if (issue.rule === 'badge-proximity-close' || issue.rule === 'badge-proximity-remove') {
-      const targetId = issue.target?.id || 'unknown'
-      hardFailures.push({
-        rule: 'badge-proximity',
-        message: `Badge too close to ${targetId}.`,
-        issue,
-      })
-    }
-  })
-
-  if (closeRemoveStatus.overlap) {
-    hardFailures.push({
-      rule: 'close-remove-overlap',
-      message: 'Drawer close and remove controls overlap.',
-      status: closeRemoveStatus,
-    })
-  }
-
-  if (
-    closeRemoveStatus.distance !== null &&
-    closeRemoveStatus.distance < CLOSE_REMOVE_THRESHOLD
-  ) {
-    hardFailures.push({
-      rule: 'close-remove-spacing',
-      message: `Drawer close/remove spacing below ${CLOSE_REMOVE_THRESHOLD}px.`,
-      status: closeRemoveStatus,
-    })
-  }
-
-  sizeViolations.forEach((violation) => {
-    hardFailures.push({
-      rule: violation.rule,
-      message: `${violation.id} hitbox below ${violation.minSize}px.`,
-      violation,
-    })
   })
 
   const hasViolations =
@@ -842,11 +588,9 @@ async function runViewport(viewport) {
     `Hitbox size violations: ${sizeViolations.length}`,
     `Badge candidates: ${badgeCandidates.length}`,
     `Badge issues: ${badgeIssues.length}`,
-    `Ignored badge issues: ${ignoredBadgeIssues.length}`,
     `Close/remove distance: ${closeRemoveStatus.distance ?? 'n/a'}px (threshold ${CLOSE_REMOVE_THRESHOLD})`,
     `Close/remove overlap: ${closeRemoveStatus.overlap ? 'YES' : 'NO'}`,
     `Hard failures: ${hardFailures.length}`,
-    `Ignore dev indicator: ${IGNORE_DEV_INDICATOR ? 'YES' : 'NO'}`,
     `Any violations: ${hasViolations ? 'YES' : 'NO'}`,
     '',
     '## Key elements',

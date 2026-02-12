@@ -1,5 +1,25 @@
 # Changelog
 
+## v2.0.0
+
+Major release introducing Codex-only team mode swarm execution and global CLI migration.
+
+Highlights:
+
+- Added new multi-agent swarm runner (`codex-swarm`) with:
+  - plan -> expert selection -> parallel execution -> deterministic integration -> gate -> retry loop
+  - required `SecurityExpert` + `TestingExpert` and optional specialist routing
+  - bounded retries (`--max-iterations`, `--max-experts`, `--time-budget`, `--max-diff-lines`)
+  - deterministic run artifacts under `artifacts/swarm_run/<timestamp>/...`
+- Added deterministic spec resolution for swarm mode:
+  - provided override (`--spec`)
+  - ordered discovery
+  - missing-spec fail-fast exit `2` with actionable guidance
+  - optional generation (`--gen-spec-if-missing`) and `gen-spec` command
+- Added dry-run simulation mode for reproducible end-to-end orchestration checks.
+- Added docs and tests for selection, routing, integration strategy, and spec behavior.
+- Updated global install flow to install `codex-swarm` and remove legacy `swarm-skills` link.
+
 ## v1.1.0
 
 Minor release adding SPEC generation and deterministic SPEC discovery improvements.

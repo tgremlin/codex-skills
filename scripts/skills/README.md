@@ -30,7 +30,7 @@ Command help includes registry-declared required flags and produced artifacts.
 
 ## Release Files
 
-- `VERSION` defines the skills pack release line (current stable: `1.0.0`).
+- `VERSION` defines the skills pack release line (current stable: `2.0.0`).
 - `CHANGELOG.md` tracks release deltas.
 - `docs/compat.md` defines machine-interface compatibility and schema bump rules.
 
@@ -101,8 +101,8 @@ Ambiguity is a hard fail (safety first). Fix by passing `--spec` explicitly or c
 
 Examples:
 
-- `swarm-skills pipeline --workspace-root /path/to/app --triage-on-fail --orchestrator`
-- `swarm-skills plan_to_contracts --workspace-root /path/to/app`
+- `codex-swarm run --repo /path/to/app --goal "Implement feature" --autofix`
+- `codex-swarm plan --repo /path/to/app --goal "Implement feature"`
 - `python3 -m skills pipeline --workspace-root /path/to/app --spec examples/specs/explicit.md`
 
 Orchestrator mode (all commands):
