@@ -4,6 +4,11 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$repo_root"
 
+python_bin="python3"
+if ! command -v "$python_bin" >/dev/null 2>&1; then
+  python_bin="python"
+fi
+
 spec_path="examples/specs/crud_rbac_audit_job.md"
 started_at="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
 ts="$(date -u +"%Y%m%dT%H%M%SZ")"
@@ -11,7 +16,10 @@ run_dir="artifacts/baseline/$ts"
 latest_dir="artifacts/baseline/latest"
 mkdir -p "$run_dir"
 
-python -m skills pipeline --spec "$spec_path" --triage-on-fail --orchestrator > "$run_dir/pipeline_result.json" 2> "$run_dir/pipeline.stderr.log"
+set +e
+"$python_bin" -m skills pipeline --spec "$spec_path" --triage-on-fail --orchestrator > "$run_dir/pipeline_result.json" 2> "$run_dir/pipeline.stderr.log"
+pipeline_exit=$?
+set -e
 
 ended_at="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
 repo_commit="$(git rev-parse HEAD 2>/dev/null || echo unknown)"
@@ -34,6 +42,7 @@ cat > "$run_dir/stress_test_summary.json" <<JSON
   "repo_commit": "$repo_commit",
   "started_at": "$started_at",
   "ended_at": "$ended_at",
+  "pipeline_exit_code": $pipeline_exit,
   "spec": "$spec_path",
   "pipeline_result_path": "$run_dir/pipeline_result.json",
   "canonical_pipeline_result": "artifacts/pipeline/latest/pipeline_result.json",
@@ -50,3 +59,7 @@ cp -R "$run_dir" "$latest_dir"
 
 echo "Stress test complete: $run_dir"
 echo "Summary: $run_dir/stress_test_summary.json"
+
+if [[ $pipeline_exit -ne 0 ]]; then
+  exit 1
+fi
