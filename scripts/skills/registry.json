@@ -154,7 +154,18 @@
       ],
       "required_inputs": [],
       "status": "implemented"
+    },
+    {
+      "cli": "python -m skills prune_artifacts [--keep-days 14] [--dry-run] [--skills id1,id2]",
+      "id": "prune_artifacts",
+      "produced_artifacts": [
+        "artifacts/prune/<timestamp>/prune_report.json",
+        "artifacts/prune/<timestamp>/GateReport.md",
+        "artifacts/prune/<timestamp>/summary.json"
+      ],
+      "required_inputs": [],
+      "status": "implemented"
     }
   ],
-  "version": "0.3.0"
+  "version": "1.0.0"
 }

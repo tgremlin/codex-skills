@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
+import sys
 from collections.abc import Callable
+from pathlib import Path
 
 from swarm_skills.commands import doctor, scaffold_verify, template_select
 from swarm_skills.commands.stub import run_stub
@@ -17,6 +20,7 @@ try:
         matrix,
         pipeline,
         plan_to_contracts,
+        prune_artifacts,
         template_check,
         triage_and_patch,
     )
@@ -28,6 +32,7 @@ except ImportError:
     matrix = None
     pipeline = None
     plan_to_contracts = None
+    prune_artifacts = None
     template_check = None
     triage_and_patch = None
 
@@ -60,6 +65,14 @@ def _add_json_arg(parser: argparse.ArgumentParser) -> None:
     )
 
 
+def _add_orchestrator_arg(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--orchestrator",
+        action="store_true",
+        help="Machine mode: stdout emits one JSON object only; human logs go to stderr.",
+    )
+
+
 def _add_optional_bool(parser: argparse.ArgumentParser, flag: str, help_text: str) -> None:
     parser.add_argument(
         f"--{flag}",
@@ -85,6 +98,7 @@ def _build_registry_help(skill: RegistrySkill) -> str:
 def _add_common_args(parser: argparse.ArgumentParser) -> None:
     _add_workspace_arg(parser)
     _add_json_arg(parser)
+    _add_orchestrator_arg(parser)
 
 
 def _configure_parser_for_skill(parser: argparse.ArgumentParser, skill_id: str) -> None:
@@ -221,6 +235,26 @@ def _configure_parser_for_skill(parser: argparse.ArgumentParser, skill_id: str) 
             default=12,
             help="Maximum number of spec/template combinations to run.",
         )
+    elif skill_id == "prune_artifacts":
+        parser.add_argument(
+            "--keep-days",
+            type=int,
+            default=14,
+            help="Delete timestamped artifact runs older than this many days.",
+        )
+        parser.add_argument(
+            "--keep-latest",
+            dest="keep_latest",
+            action=argparse.BooleanOptionalAction,
+            default=True,
+            help="Retained for compatibility; latest artifacts are always preserved.",
+        )
+        parser.add_argument("--dry-run", action="store_true", help="Report deletions without deleting files.")
+        parser.add_argument(
+            "--skills",
+            required=False,
+            help="Comma-separated artifact skill directories to prune (default: all under artifacts/).",
+        )
 
 
 def _build_handlers() -> dict[str, CommandHandler]:
@@ -265,6 +299,10 @@ def _build_handlers() -> dict[str, CommandHandler]:
         handlers["matrix"] = matrix.run
     else:
         handlers["matrix"] = lambda args: run_stub("matrix", args)
+    if prune_artifacts is not None:
+        handlers["prune_artifacts"] = prune_artifacts.run
+    else:
+        handlers["prune_artifacts"] = lambda args: run_stub("prune_artifacts", args)
     return handlers
 
 
@@ -290,6 +328,11 @@ def _build_parser(registry: RegistryData) -> argparse.ArgumentParser:
 
     list_parser = subparsers.add_parser("list", help="List commands from registry.json")
     list_parser.add_argument("--json", action="store_true", help="Print registry as machine-readable JSON")
+    list_parser.add_argument(
+        "--orchestrator",
+        action="store_true",
+        help="Machine mode: stdout emits one JSON object only.",
+    )
     list_parser.set_defaults(command="list")
 
     for skill in registry.skills:
@@ -299,13 +342,56 @@ def _build_parser(registry: RegistryData) -> argparse.ArgumentParser:
     return parser
 
 
+def _orchestrator_output_path(workspace_root: Path, command: str) -> Path:
+    mapping = {
+        "backend_build": workspace_root / "artifacts" / "backend" / "latest" / "summary.json",
+        "bench": workspace_root / "artifacts" / "bench" / "latest" / "summary.json",
+        "doctor": workspace_root / "artifacts" / "doctor" / "latest" / "summary.json",
+        "frontend_bind": workspace_root / "artifacts" / "frontend" / "latest" / "summary.json",
+        "fullstack_test_harness": workspace_root / "artifacts" / "tests" / "latest" / "summary.json",
+        "matrix": workspace_root / "artifacts" / "matrix" / "latest" / "summary.json",
+        "pipeline": workspace_root / "artifacts" / "pipeline" / "latest" / "pipeline_result.json",
+        "plan_to_contracts": workspace_root / "artifacts" / "contracts" / "latest" / "summary.json",
+        "prune_artifacts": workspace_root / "artifacts" / "prune" / "latest" / "summary.json",
+        "scaffold_verify": workspace_root / "artifacts" / "scaffold_verify" / "latest" / "summary.json",
+        "template_check": workspace_root / "artifacts" / "template_check" / "latest" / "summary.json",
+        "template_select": workspace_root / "artifacts" / "template_select" / "latest" / "summary.json",
+        "triage_and_patch": workspace_root / "artifacts" / "triage" / "latest" / "summary.json",
+    }
+    return mapping.get(command, workspace_root / "artifacts" / command / "latest" / "summary.json")
+
+
+def _emit_orchestrator_json(workspace_root: Path, command: str, exit_code: int) -> int:
+    payload_path = _orchestrator_output_path(workspace_root, command)
+    if payload_path.exists():
+        try:
+            payload = json.loads(payload_path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            payload = {
+                "message": "Expected machine output exists but is invalid JSON.",
+                "output_path": str(payload_path),
+                "status": "fail",
+            }
+            exit_code = 1
+    else:
+        payload = {
+            "message": "Expected machine output is missing.",
+            "output_path": str(payload_path),
+            "status": "fail",
+        }
+        exit_code = 1
+
+    print(json.dumps(payload, indent=2, sort_keys=True))
+    return exit_code
+
+
 def main(argv: list[str] | None = None) -> int:
     registry = load_registry()
     parser = _build_parser(registry)
     args = parser.parse_args(argv)
 
     if args.command == "list":
-        if args.json:
+        if args.orchestrator or args.json:
             print(json.dumps(registry_as_json(registry), indent=2, sort_keys=True))
         else:
             for skill in registry.skills:
@@ -326,4 +412,17 @@ def main(argv: list[str] | None = None) -> int:
     handler = handlers.get(args.command)
     if handler is None:
         parser.error(f"No handler wired for command '{args.command}'")
+
+    if not hasattr(args, "orchestrator"):
+        return handler(args)
+
+    if args.orchestrator:
+        workspace_root = Path(getattr(args, "workspace_root", ".")).resolve()
+        if hasattr(args, "json"):
+            args.json = False
+        print(f"[skills] orchestrator mode running `{args.command}`", file=sys.stderr)
+        with contextlib.redirect_stdout(sys.stderr):
+            exit_code = handler(args)
+        return _emit_orchestrator_json(workspace_root=workspace_root, command=args.command, exit_code=exit_code)
+
     return handler(args)

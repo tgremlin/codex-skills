@@ -28,6 +28,12 @@ python3 -m skills list --json
 
 Command help includes registry-declared required flags and produced artifacts.
 
+## Release Files
+
+- `VERSION` defines the skills pack release line (current stable: `1.0.0`).
+- `CHANGELOG.md` tracks release deltas.
+- `docs/compat.md` defines machine-interface compatibility and schema bump rules.
+
 ## Current Implemented Commands
 
 - `python3 -m skills doctor`
@@ -42,10 +48,17 @@ Command help includes registry-declared required flags and produced artifacts.
 - `python3 -m skills template_check --all [--strict]`
 - `python3 -m skills bench --spec-dir examples/specs [--strict] [--network] [--append-history]`
 - `python3 -m skills matrix --spec-dir examples/specs [--templates all|id1,id2] [--strict] [--network] [--limit N]`
+- `python3 -m skills prune_artifacts [--keep-days 14] [--dry-run] [--skills pipeline,bench]`
 
 Optional local network mode:
 
 - `python3 -m skills fullstack_test_harness --template local-node-http-crud --network`
+
+Orchestrator mode (all commands):
+
+- Add `--orchestrator` to emit exactly one machine JSON object to stdout.
+- Human logs are routed to stderr.
+- If both `--json` and `--orchestrator` are passed, orchestrator mode wins.
 
 ## Deterministic Artifact Standard
 
@@ -83,6 +96,7 @@ Machine-readable artifacts include explicit schema versions:
 - `artifacts/triage/latest/summary_payload.json` (`schema_version`)
 - `artifacts/triage/latest/summary.json` (`schema_version`)
 - `skills/handoff_contract.json` (`schema_version`)
+- `skills/swarm_integration_recipe.json` (`schema_version`)
 
 Schema bump policy:
 
@@ -90,9 +104,12 @@ Schema bump policy:
 - Minor version bump for additive, backward-compatible fields.
 - Patch changes are documentation/test-only and do not alter schema shape.
 
+Compatibility policy and examples are maintained in `docs/compat.md`.
+
 Swarm orchestrator contract:
 
 - `skills/handoff_contract.json` defines ordered step handoffs, required inputs, produced outputs, and strict-mode effects.
+- `skills/swarm_integration_recipe.json` defines preferred Option A/Option B orchestration loops.
 - `pipeline_result.json` includes:
   - `handoff_contract_path`
   - `handoff_contract_sha256`
@@ -113,6 +130,7 @@ python3 -m skills template_check --all
 python3 -m skills bench --spec-dir examples/specs
 python3 -m skills bench --spec-dir examples/specs --append-history
 python3 -m skills matrix --spec-dir examples/specs --templates all --limit 12
+python3 -m skills prune_artifacts --keep-days 14 --dry-run
 ```
 
 ## Demo Pipeline (Fail Fast)
@@ -159,6 +177,12 @@ Optional automatic triage on failure:
 python3 -m skills pipeline --spec examples/SPEC.todo.md --triage-on-fail
 ```
 
+Machine-first orchestrator invocation:
+
+```bash
+python3 -m skills pipeline --spec examples/SPEC.todo.md --triage-on-fail --orchestrator
+```
+
 Bench trend logging:
 
 ```bash
@@ -166,6 +190,29 @@ python3 -m skills bench --spec-dir examples/specs --append-history
 ```
 
 History entries are appended to `artifacts/bench/history.jsonl`.
+
+## Pushing to GitHub
+
+From a networked shell:
+
+```bash
+cd /mnt/Storage/Repos/codex-skills
+git status
+git push origin master
+git push --tags
+```
+
+Push helper:
+
+```bash
+./scripts/git/push_master.sh
+```
+
+Verify CI:
+
+- Open the pushed commit or PR on GitHub.
+- Confirm `.github/workflows/merge-gate.yml` completed successfully.
+- If failed, download the uploaded `artifacts/**/latest/**` bundle and inspect `artifacts/pipeline/latest/GateReport.md`.
 
 ## Any-Folder Use
 
@@ -183,6 +230,8 @@ Install wrapper command for global use:
 ./scripts/skills/install_global.sh
 swarm-skills template_select --spec examples/SPEC.todo.md
 ```
+
+Repository helper scripts live under `scripts/git/`.
 
 ## New Active Template
 
@@ -227,3 +276,4 @@ python3 -m skills template_check --all --strict
 - `backend_build` prefers validated template `inventory_cmd` output when declared; otherwise it falls back to local OpenAPI/static scanning.
 - `frontend_bind` prefers API wrapper extraction from `lib/apiClient.ts` / `lib/api.ts` (or `src/lib/...`) and falls back to heuristic endpoint scanning when wrappers are missing.
 - Exemptions default to `skills/config/exemptions.json` with required owner/reason/expiry metadata.
+- Generated `skills/.system/*` and `skills/dist/*` outputs are ignored and must not be committed.

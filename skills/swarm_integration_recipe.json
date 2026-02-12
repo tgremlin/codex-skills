@@ -1,0 +1,69 @@
+{
+  "schema_version": "1.0",
+  "preferred_flow": "option_b",
+  "flows": {
+    "option_a": {
+      "description": "Build app, run pipeline gate, ship only on green.",
+      "steps": [
+        {
+          "name": "pipeline_gate",
+          "command": "python -m skills pipeline --spec <SPEC_PATH> --orchestrator",
+          "reads": [],
+          "produces": [
+            "artifacts/pipeline/latest/pipeline_result.json"
+          ],
+          "next_on_pass": "ship",
+          "next_on_fail": "stop"
+        }
+      ]
+    },
+    "option_b": {
+      "description": "Run pipeline with auto-triage and dispatch targeted workers on failures.",
+      "steps": [
+        {
+          "name": "pipeline_gate",
+          "command": "python -m skills pipeline --spec <SPEC_PATH> --triage-on-fail --orchestrator",
+          "reads": [],
+          "produces": [
+            "artifacts/pipeline/latest/pipeline_result.json",
+            "artifacts/triage/latest/root_cause.md",
+            "artifacts/triage/latest/patch_plan.md"
+          ],
+          "next_on_pass": "ship",
+          "next_on_fail": "dispatch_worker"
+        },
+        {
+          "name": "dispatch_worker",
+          "command": "<orchestrator-specific dispatch using classification from pipeline_result.triage>",
+          "reads": [
+            "artifacts/pipeline/latest/pipeline_result.json",
+            "artifacts/triage/latest/root_cause.md",
+            "artifacts/triage/latest/patch_plan.md"
+          ],
+          "produces": [
+            "<repo code changes>"
+          ],
+          "next_on_pass": "rerun_pipeline",
+          "next_on_fail": "rerun_pipeline"
+        },
+        {
+          "name": "rerun_pipeline",
+          "command": "python -m skills pipeline --spec <SPEC_PATH> --triage-on-fail --orchestrator",
+          "reads": [
+            "<repo code changes>"
+          ],
+          "produces": [
+            "artifacts/pipeline/latest/pipeline_result.json"
+          ],
+          "next_on_pass": "ship",
+          "next_on_fail": "dispatch_worker"
+        }
+      ]
+    }
+  },
+  "output_contract": {
+    "primary": "artifacts/pipeline/latest/pipeline_result.json",
+    "triage_root_cause": "artifacts/triage/latest/root_cause.md",
+    "triage_patch_plan": "artifacts/triage/latest/patch_plan.md"
+  }
+}

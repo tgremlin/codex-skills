@@ -92,3 +92,29 @@ QA/Gatekeeper role:
 Orchestrator role:
 
 - Runs `pipeline` for fail-fast, single-report gating across all core steps.
+
+## Swarm Integration
+
+Preferred orchestrator input:
+
+- `artifacts/pipeline/latest/pipeline_result.json`
+
+Option A (simple gate):
+
+1. Build/update the app.
+2. Run:
+   - `python -m skills pipeline --spec <SPEC.md> --orchestrator`
+3. Ship only when `overall_status` is `pass`.
+
+Option B (recommended loop):
+
+1. Build/update the app.
+2. Run:
+   - `python -m skills pipeline --spec <SPEC.md> --triage-on-fail --orchestrator`
+3. If `overall_status` is `fail`, read triage pointers in `pipeline_result.json`.
+4. Dispatch targeted worker based on classification (`env/bootstrap`, `contract mismatch`, `backend runtime`, `frontend binding`, `db persistence`, `test flakiness`).
+5. Re-run pipeline until green.
+
+Machine recipe:
+
+- `skills/swarm_integration_recipe.json` encodes preferred flow commands and next-file pointers.

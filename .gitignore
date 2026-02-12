@@ -3,3 +3,9 @@
 __pycache__/
 *.pyc
 .pf_manifest/
+
+artifacts/
+!artifacts/.gitkeep
+
+skills/.system/*
+skills/dist/*
