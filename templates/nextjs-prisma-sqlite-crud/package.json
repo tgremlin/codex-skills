@@ -1,0 +1,9 @@
+{
+  "name": "nextjs-prisma-sqlite-crud",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "start": "node server.js",
+    "test:no-network": "node scripts/no_network_check.js"
+  }
+}

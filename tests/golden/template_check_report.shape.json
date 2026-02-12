@@ -1,0 +1,30 @@
+{
+  "required_top_level_keys": [
+    "overall_status",
+    "schema_version",
+    "strict_mode",
+    "templates",
+    "totals"
+  ],
+  "template_required_keys": [
+    "checks",
+    "errors",
+    "manifest_path",
+    "status",
+    "template_id",
+    "warnings"
+  ],
+  "totals_required_keys": [
+    "failed",
+    "passed",
+    "templates",
+    "warned"
+  ],
+  "type_assertions": {
+    "overall_status": "str",
+    "schema_version": "str",
+    "strict_mode": "bool",
+    "templates": "array",
+    "totals": "dict"
+  }
+}

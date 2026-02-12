@@ -1,0 +1,54 @@
+{
+  "id": "local-node-http-crud",
+  "version": "0.1.0",
+  "name": "Local Node HTTP CRUD Baseline",
+  "description": "No-dependency template with a browser UI, JSON API, and file-backed persistence.",
+  "status": "active",
+  "risk_flags": [
+    "not-nextjs",
+    "json-file-database"
+  ],
+  "capabilities": [
+    "api",
+    "crud",
+    "db",
+    "persistence",
+    "ui"
+  ],
+  "runbook": {
+    "install_steps": [
+      "cd templates/local-node-http-crud",
+      "npm run start"
+    ],
+    "run_steps": [
+      "curl http://127.0.0.1:$PORT/api/health",
+      "open http://127.0.0.1:$PORT"
+    ],
+    "env": [
+      "PORT"
+    ]
+  },
+  "boot": {
+    "preflight": [
+      [
+        "node",
+        "--version"
+      ]
+    ],
+    "command": [
+      "node",
+      "server.js"
+    ],
+    "default_port": 3210,
+    "health_path": "/api/health",
+    "inventory_cmd": [
+      "node",
+      "scripts/inventory.js"
+    ],
+    "health_strategy": [
+      "http_get:/api/health",
+      "process_stdout_regex:server running at http://127\\.0\\.0\\.1:\\d+",
+      "test_cmd:node scripts/no_network_check.js"
+    ]
+  }
+}

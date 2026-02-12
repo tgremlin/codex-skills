@@ -1,0 +1,160 @@
+{
+  "entrypoint": "python -m skills",
+  "pack": "full-stack-app-swarm-skills",
+  "skills": [
+    {
+      "cli": "python -m skills doctor",
+      "id": "doctor",
+      "produced_artifacts": [
+        "artifacts/doctor/<timestamp>/doctor.json",
+        "artifacts/doctor/<timestamp>/summary.json"
+      ],
+      "required_inputs": [],
+      "status": "implemented"
+    },
+    {
+      "cli": "python -m skills template_select --spec SPEC.md",
+      "id": "template_select",
+      "produced_artifacts": [
+        "artifacts/template_select/<timestamp>/template_choice.json",
+        "artifacts/template_select/<timestamp>/runbook.md",
+        "artifacts/plan/template_choice.json",
+        "artifacts/plan/runbook.md"
+      ],
+      "required_inputs": [
+        "spec"
+      ],
+      "status": "implemented"
+    },
+    {
+      "cli": "python -m skills scaffold_verify --template <id-or-path>",
+      "id": "scaffold_verify",
+      "produced_artifacts": [
+        "artifacts/scaffold_verify/<timestamp>/smoke.json",
+        "artifacts/scaffold_verify/<timestamp>/env.example",
+        "artifacts/bootstrap/smoke.json",
+        "artifacts/bootstrap/env.example"
+      ],
+      "required_inputs": [
+        "template"
+      ],
+      "status": "implemented"
+    },
+    {
+      "cli": "python -m skills plan_to_contracts --spec SPEC.md",
+      "id": "plan_to_contracts",
+      "produced_artifacts": [
+        "artifacts/contracts/<timestamp>/API_CONTRACT.md",
+        "artifacts/contracts/<timestamp>/DATA_MODEL.md",
+        "artifacts/contracts/<timestamp>/ROUTES.md",
+        "artifacts/contracts/<timestamp>/TEST_PLAN.md",
+        "artifacts/contracts/<timestamp>/api_contract.json",
+        "artifacts/contracts/<timestamp>/contracts_summary.json",
+        "artifacts/contracts/<timestamp>/GateReport.md"
+      ],
+      "required_inputs": [
+        "spec"
+      ],
+      "status": "implemented"
+    },
+    {
+      "cli": "python -m skills backend_build --contracts artifacts/contracts/latest/api_contract.json",
+      "id": "backend_build",
+      "produced_artifacts": [
+        "artifacts/backend/<timestamp>/api_inventory.json",
+        "artifacts/backend/<timestamp>/contract_coverage.json",
+        "artifacts/backend/<timestamp>/GateReport.md",
+        "artifacts/backend/<timestamp>/summary.json"
+      ],
+      "required_inputs": [],
+      "status": "implemented"
+    },
+    {
+      "cli": "python -m skills frontend_bind --contracts-dir artifacts/contracts/latest",
+      "id": "frontend_bind",
+      "produced_artifacts": [
+        "artifacts/frontend/<timestamp>/api_usage.json",
+        "artifacts/frontend/<timestamp>/mock_data_report.json",
+        "artifacts/frontend/<timestamp>/GateReport.md",
+        "artifacts/frontend/<timestamp>/summary.json"
+      ],
+      "required_inputs": [],
+      "status": "implemented"
+    },
+    {
+      "cli": "python -m skills fullstack_test_harness [--test-plan artifacts/contracts/latest/TEST_PLAN.md] [--network]",
+      "id": "fullstack_test_harness",
+      "produced_artifacts": [
+        "artifacts/tests/<timestamp>/ui_results.json",
+        "artifacts/tests/<timestamp>/api_results.json",
+        "artifacts/tests/<timestamp>/db_results.json",
+        "artifacts/tests/<timestamp>/GateReport.md",
+        "artifacts/tests/<timestamp>/summary.json"
+      ],
+      "required_inputs": [],
+      "status": "implemented"
+    },
+    {
+      "cli": "python -m skills triage_and_patch --gate-report <path> [--gate-report <path2>]",
+      "id": "triage_and_patch",
+      "produced_artifacts": [
+        "artifacts/triage/<timestamp>/root_cause.md",
+        "artifacts/triage/<timestamp>/patch_plan.md",
+        "artifacts/triage/<timestamp>/summary.json"
+      ],
+      "required_inputs": [
+        "gate_report"
+      ],
+      "status": "implemented"
+    },
+    {
+      "cli": "python -m skills pipeline --spec SPEC.md [--network] [--strict] [--triage-on-fail]",
+      "id": "pipeline",
+      "produced_artifacts": [
+        "artifacts/pipeline/<timestamp>/GateReport.md",
+        "artifacts/pipeline/<timestamp>/pipeline_result.json",
+        "artifacts/pipeline/<timestamp>/summary.json"
+      ],
+      "required_inputs": [
+        "spec"
+      ],
+      "status": "implemented"
+    },
+    {
+      "cli": "python -m skills template_check --template <id> | --all [--strict]",
+      "id": "template_check",
+      "produced_artifacts": [
+        "artifacts/template_check/<timestamp>/report.json",
+        "artifacts/template_check/<timestamp>/GateReport.md",
+        "artifacts/template_check/<timestamp>/summary.json"
+      ],
+      "required_inputs": [],
+      "status": "implemented"
+    },
+    {
+      "cli": "python -m skills bench [--spec-dir examples/specs] [--strict] [--network] [--template <id>] [--append-history]",
+      "id": "bench",
+      "produced_artifacts": [
+        "artifacts/bench/<timestamp>/bench_results.json",
+        "artifacts/bench/<timestamp>/bench_report.md",
+        "artifacts/bench/<timestamp>/summary.json",
+        "artifacts/bench/history.jsonl"
+      ],
+      "required_inputs": [],
+      "status": "implemented"
+    },
+    {
+      "cli": "python -m skills matrix [--spec-dir examples/specs] [--templates all|id1,id2] [--strict] [--network] [--limit N]",
+      "id": "matrix",
+      "produced_artifacts": [
+        "artifacts/matrix/<timestamp>/matrix.json",
+        "artifacts/matrix/<timestamp>/matrix_report.md",
+        "artifacts/matrix/<timestamp>/GateReport.md",
+        "artifacts/matrix/<timestamp>/summary.json"
+      ],
+      "required_inputs": [],
+      "status": "implemented"
+    }
+  ],
+  "version": "0.3.0"
+}

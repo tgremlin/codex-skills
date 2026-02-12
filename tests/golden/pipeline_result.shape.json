@@ -1,0 +1,38 @@
+{
+  "required_top_level_keys": [
+    "ended_at",
+    "handoff_contract_path",
+    "handoff_contract_sha256",
+    "overall_status",
+    "provenance",
+    "schema_version",
+    "spec",
+    "started_at",
+    "steps",
+    "strict_mode",
+    "template",
+    "warnings_count"
+  ],
+  "step_required_keys": [
+    "artifacts_dir",
+    "duration_sec",
+    "gate_report_path",
+    "notes",
+    "status",
+    "step_name",
+    "summary_json_path"
+  ],
+  "type_assertions": {
+    "handoff_contract_path": "str|null",
+    "handoff_contract_sha256": "str|null",
+    "overall_status": "str",
+    "provenance": "dict",
+    "schema_version": "str",
+    "spec": "dict",
+    "steps": "array",
+    "strict_mode": "bool",
+    "template": "dict",
+    "triage": "dict|null",
+    "warnings_count": "int"
+  }
+}

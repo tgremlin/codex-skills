@@ -1,0 +1,57 @@
+{
+  "id": "nextjs-prisma-sqlite-crud",
+  "version": "0.1.0",
+  "name": "Next.js + Prisma + SQLite CRUD Baseline",
+  "description": "A no-network runnable baseline that mirrors Next.js+Prisma contract flow with deterministic local checks.",
+  "status": "active",
+  "risk_flags": [
+    "lightweight-nextjs-simulation",
+    "experimental-template"
+  ],
+  "capabilities": [
+    "api",
+    "crud",
+    "db",
+    "framework_nextjs",
+    "orm_prisma",
+    "persistence",
+    "seo",
+    "ui"
+  ],
+  "runbook": {
+    "install_steps": [
+      "cd templates/nextjs-prisma-sqlite-crud",
+      "npm run start"
+    ],
+    "run_steps": [
+      "curl http://127.0.0.1:$PORT/api/health"
+    ],
+    "env": [
+      "PORT",
+      "DATABASE_URL"
+    ]
+  },
+  "boot": {
+    "preflight": [
+      [
+        "node",
+        "--version"
+      ]
+    ],
+    "command": [
+      "node",
+      "server.js"
+    ],
+    "default_port": 3211,
+    "health_path": "/api/health",
+    "inventory_cmd": [
+      "node",
+      "scripts/inventory.js"
+    ],
+    "health_strategy": [
+      "http_get:/api/health",
+      "process_stdout_regex:server running at http://127\\.0\\.0\\.1:\\d+",
+      "test_cmd:node scripts/no_network_check.js"
+    ]
+  }
+}

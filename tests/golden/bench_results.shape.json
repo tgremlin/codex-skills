@@ -1,0 +1,29 @@
+{
+  "required_top_level_keys": [
+    "network_mode",
+    "overall_status",
+    "results",
+    "schema_version",
+    "spec_dir",
+    "strict_mode",
+    "warnings_count"
+  ],
+  "result_required_keys": [
+    "duration_sec",
+    "pipeline_result_json",
+    "spec_path",
+    "status",
+    "step_durations",
+    "template",
+    "warnings_count"
+  ],
+  "type_assertions": {
+    "network_mode": "bool",
+    "overall_status": "str",
+    "results": "array",
+    "schema_version": "str",
+    "spec_dir": "str",
+    "strict_mode": "bool",
+    "warnings_count": "int"
+  }
+}

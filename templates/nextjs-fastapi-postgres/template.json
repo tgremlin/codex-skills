@@ -1,0 +1,34 @@
+{
+  "id": "nextjs-fastapi-postgres",
+  "version": "0.1.0",
+  "name": "Next.js Frontend + FastAPI Backend + Postgres",
+  "description": "Planned decoupled frontend/backend starter for contract-first builds.",
+  "status": "stub",
+  "risk_flags": [
+    "template-not-implemented"
+  ],
+  "capabilities": [
+    "api",
+    "auth",
+    "crud",
+    "db",
+    "persistence",
+    "realtime",
+    "seo",
+    "ui"
+  ],
+  "runbook": {
+    "install_steps": [
+      "Template pending implementation"
+    ],
+    "run_steps": [
+      "Template pending implementation"
+    ],
+    "env": [
+      "DATABASE_URL",
+      "API_BASE_URL",
+      "PORT"
+    ]
+  },
+  "boot": {}
+}

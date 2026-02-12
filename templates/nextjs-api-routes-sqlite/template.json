@@ -1,0 +1,31 @@
+{
+  "id": "nextjs-api-routes-sqlite",
+  "version": "0.1.0",
+  "name": "Next.js + API Routes + SQLite",
+  "description": "Planned starter for integrated Next.js full-stack CRUD.",
+  "status": "stub",
+  "risk_flags": [
+    "template-not-implemented"
+  ],
+  "capabilities": [
+    "api",
+    "crud",
+    "db",
+    "persistence",
+    "seo",
+    "ui"
+  ],
+  "runbook": {
+    "install_steps": [
+      "Template pending implementation"
+    ],
+    "run_steps": [
+      "Template pending implementation"
+    ],
+    "env": [
+      "DATABASE_URL",
+      "PORT"
+    ]
+  },
+  "boot": {}
+}
